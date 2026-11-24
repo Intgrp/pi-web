@@ -130,3 +130,40 @@ const KK_FILEVIEW_SUPPORTED_EXT = new Set([
 export function isKkFileViewSupportedExt(filePath: string): boolean {
   return KK_FILEVIEW_SUPPORTED_EXT.has(getFileExt(filePath));
 }
+
+/**
+ * Extensions kkFileView 5.0.3 can preview. Mirrors the suffix→FileType map in
+ * its `model/FileType.java` (plus the default simText/media lists from
+ * `application.properties`); anything else lands on kkFileView's "系统还不支持
+ * 该格式文件的在线预览" page, so the preview-router defaults those to the
+ * built-in text viewer instead (e.g. pip.conf).
+ */
+const KK_FILEVIEW_SUPPORTED_EXT = new Set([
+  // OFFICE_TYPES
+  "docx", "wps", "doc", "docm", "xls", "xlsx", "csv", "xlsm", "ppt", "pptx",
+  "vsd", "rtf", "odt", "wmf", "emf", "dps", "et", "ods", "ots", "tsv", "odp",
+  "otp", "sxi", "ott", "vsdx", "fodt", "fods", "xltx", "tga", "psd", "dotm",
+  "ett", "xlt", "xltm", "wpt", "dot", "xlam", "dotx", "xla", "pages", "eps", "pptm",
+  // PICTURE_TYPES
+  "jpg", "jpeg", "png", "gif", "bmp", "ico", "jfif", "webp", "heic", "avif", "heif",
+  // ARCHIVE_TYPES
+  "rar", "zip", "jar", "7-zip", "tar", "gzip", "7z",
+  // ONLINE3D_TYPES
+  "obj", "3ds", "stl", "ply", "off", "3dm", "fbx", "dae", "wrl", "3mf", "ifc",
+  "glb", "o3dv", "gltf", "stp", "bim", "fcstd", "step", "iges", "brep",
+  // single-suffix types
+  "eml", "msg", "xmind", "epub", "dcm", "drawio", "xml", "xbrl", "json",
+  "tif", "tiff", "ofd", "svg", "dwg", "dxf", "dwf", "igs", "dwt", "dng",
+  "dwfx", "cf2", "plt", "bpmn", "pdf",
+  // CODE_TYPES
+  "java", "c", "php", "go", "python", "py", "js", "html", "ftl", "css", "lua",
+  "sh", "rb", "yaml", "yml", "h", "cpp", "cs", "aspx", "jsp", "sql",
+  // default simText list (application.properties)
+  "txt", "htm", "asp", "properties", "md", "gitignore", "log", "bat", "m", "bas", "prg", "cmd",
+  // default media list (application.properties)
+  "mp3", "wav", "mp4", "flv", "mpd", "m3u8", "ts", "mpeg", "m4a",
+]);
+
+export function isKkFileViewSupportedExt(filePath: string): boolean {
+  return KK_FILEVIEW_SUPPORTED_EXT.has(getFileExt(filePath));
+}
