@@ -41,7 +41,16 @@ const FILE_REQUEST_TYPES = ["list", "read", "download", "meta", "preview", "watc
 type FileRequestType = typeof FILE_REQUEST_TYPES[number];
 const FILE_REQUEST_TYPE_SET = new Set<string>(FILE_REQUEST_TYPES);
 // One limit for a request's files together; a single file may use all of it.
-const MAX_UPLOAD_TOTAL_BYTES = 100 * 1024 * 1024;
+// Configurable via PI_WEB_MAX_UPLOAD_MB (in megabytes); defaults to 1GB.
+function resolveMaxUploadTotalBytes(): number {
+  const raw = process.env.PI_WEB_MAX_UPLOAD_MB;
+  if (raw) {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed * 1024 * 1024);
+  }
+  return 1024 * 1024 * 1024;
+}
+const MAX_UPLOAD_TOTAL_BYTES = resolveMaxUploadTotalBytes();
 // Multipart boundaries and headers are not file bytes, but must be bounded too.
 const MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_TOTAL_BYTES + 1024 * 1024;
 
@@ -197,13 +206,13 @@ export async function POST(
       formData = await parseFormDataWithinLimit(request, MAX_UPLOAD_REQUEST_BYTES);
     } catch (error) {
       if (error instanceof RequestBodyTooLargeError) {
-        return NextResponse.json({ error: "Uploads must total 100MB or less" }, { status: 413 });
+        return NextResponse.json({ error: "Uploads must total 1GB or less" }, { status: 413 });
       }
       throw error;
     }
     const files = formData.getAll("files").filter((entry): entry is File => typeof entry !== "string");
     if (files.reduce((total, file) => total + file.size, 0) > MAX_UPLOAD_TOTAL_BYTES) {
-      return NextResponse.json({ error: "Uploads must total 100MB or less" }, { status: 413 });
+      return NextResponse.json({ error: "Uploads must total 1GB or less" }, { status: 413 });
     }
     const fileNames = files.map((file) => file.name);
     const validationError = validateUploadFileNames(fileNames);
@@ -246,7 +255,7 @@ export async function POST(
       }
 
       try {
-        // Async writes: a 100MB file written synchronously would stall every
+        // Async writes: a 1GB file written synchronously would stall every
         // stream and request this process serves until the disk catches up.
         if (conflictSet.has(file.name)) {
           await replaceUploadFile(destination, bytes);
