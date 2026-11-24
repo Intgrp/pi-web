@@ -75,6 +75,7 @@ app/api/
   home/route.ts                    GET user home directory
   open-in-explorer/route.ts        GET availability | POST open a cwd in the OS file manager (loopback only)
   files/[...path]/route.ts         GET ?type=list|read|download|meta|preview|watch | POST ?type=upload|upload-check|allow-link
+  files/kkfileview/route.ts        GET kkFileView bridge: capability probe, or ?path= a signed preview URL
   file-index/route.ts              GET file list for @-mentions
   git/status/route.ts              GET changed files for a cwd
   git/diff/route.ts                GET diff of one changed file

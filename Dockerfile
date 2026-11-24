@@ -21,10 +21,30 @@ ENV NODE_ENV=production \
     PI_WEB_HOSTNAME=0.0.0.0 \
     PI_WEB_NO_OPEN=1
 
-# git is used by project tools; bash is needed by the agent's shell tool and terminal.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash ca-certificates git \
+# apt → aliyun mirrors over http (handles both the deb822 sources file and
+# the legacy sources.list). Not https: node:22-bookworm-slim ships no
+# ca-certificates, so the TLS handshake would fail before that package can be
+# installed; apt verifies packages via GPG signatures instead. This is the
+# same scheme kkFileView's own base image uses.
+# Packages: git is used by project tools; bash by the agent's shell tool and
+# terminal; curl for scripting; docker.io for the docker CLI; python3 with
+# pip/venv for python scripting; npm is upgraded over the image's bundled one
+# to fix an edgesOut bug.
+RUN set -e; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+        sed -i 's|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g; \
+                s|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
+            /etc/apt/sources.list.d/debian.sources; \
+    else \
+        sed -i 's|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g; \
+                s|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; \
+                s|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
+            /etc/apt/sources.list; \
+    fi && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      bash ca-certificates git curl docker.io python3 python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/* \
+    && npm install -g npm@12.2.2 \
     && mkdir -p /home/node/.pi/agent /home/node/.agents/skills /home/node/pi-cwd \
     && chown -R node:node /home/node/.pi /home/node/.agents /home/node/pi-cwd
 

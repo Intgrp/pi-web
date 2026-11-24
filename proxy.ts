@@ -68,6 +68,18 @@ export function proxy(request: NextRequest) {
   }
   if (request.nextUrl.pathname === "/api/web-auth") return NextResponse.next();
 
+  // kkFileView fetches file URLs server-side with a signed token instead of
+  // the session cookie. The files route verifies the token's signature, expiry
+  // and file binding itself; this only lets the request reach it.
+  if (
+    !authenticated
+    && request.method === "GET"
+    && (request.nextUrl.pathname === "/api/files" || request.nextUrl.pathname.startsWith("/api/files/"))
+    && request.nextUrl.searchParams.has("token")
+  ) {
+    return NextResponse.next();
+  }
+
   if (!authenticated) {
     if (!isApiRequest) {
       const loginUrl = new URL("/login", request.url);

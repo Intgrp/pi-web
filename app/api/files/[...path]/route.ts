@@ -35,6 +35,7 @@ import { readTextPreviewChunk } from "@/lib/text-preview";
 import { registerFileWatch } from "@/lib/file-watch-registry";
 import { FILE_WATCH_HEARTBEAT_MS } from "@/lib/file-version";
 import { pageStreamLabel, registerPageStream } from "@/lib/page-stream-registry";
+import { isValidKkFileToken } from "@/lib/kkfileview";
 
 const FILE_REQUEST_TYPES = ["list", "read", "download", "meta", "preview", "watch"] as const;
 type FileRequestType = typeof FILE_REQUEST_TYPES[number];
@@ -470,6 +471,16 @@ export async function GET(
       return NextResponse.json({ error: "Invalid file request type" }, { status: 400 });
     }
     const sessionId = request.nextUrl.searchParams.get("sessionId");
+
+    // A kkFileView token replaces the session cookie for exactly one file's
+    // download (lib/kkfileview.ts); the proxy only lets the request through.
+    const kkToken = request.nextUrl.searchParams.get("token");
+    if (kkToken !== null) {
+      if (type !== "download" || !isValidKkFileToken(kkToken, filePath, process.env.PI_WEB_PASSWORD ?? "")) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      }
+    }
+
 
     const allowedRoots = await getAllowedFileRoots();
     const allowedByRoot = isFilePathAllowed(filePath, allowedRoots);

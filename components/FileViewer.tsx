@@ -16,6 +16,7 @@ import {
   isAudioPath,
   isDocumentPreviewPath,
   isImagePath,
+  isKkFileViewSupportedExt,
   isVideoPath,
 } from "@/lib/file-types";
 import { encodeFilePathForApi, getFileDirectory, getFileName, getRelativeFilePath } from "@/lib/file-paths";
@@ -33,6 +34,8 @@ import { FrontmatterCard } from "./FrontmatterCard";
 import { diffGapLabel, parseUnifiedPatch, unifiedDiffLines, type SplitDiffGap, type UnifiedDiffLine } from "@/lib/patch";
 import type { GitFileDiffResponse } from "@/lib/git-types";
 import { useI18n } from "@/hooks/useI18n";
+import { KkFileViewer } from "./KkFileViewer";
+import { KkViewToggle, type PreviewMode } from "./KkViewToggle";
 import {
   resolveInitialFileDisplayMode,
   resolveInitialWrapLines,
@@ -57,6 +60,11 @@ interface Props {
   initialState?: FileViewerState;
   onStateChange?: (state: FileViewerState) => void;
   watchEnabled?: boolean;
+  /** kkFileView is configured; built-in toolbars may offer the switch to it. */
+  kkAvailable?: boolean;
+  /** Which engine the built-in viewer is being shown instead of. */
+  previewMode?: PreviewMode;
+  onPreviewModeChange?: (mode: PreviewMode) => void;
 }
 
 interface FileData {
@@ -585,7 +593,7 @@ function DiffView({
 // SOURCE_HIGHLIGHT_MAX_LINES lines again.
 const MemoizedDiffView = memo(DiffView);
 
-function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Props) {
+function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true, kkAvailable = false, previewMode = "builtin", onPreviewModeChange }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [watchAttempt, superviseWatch] = useWatchRecovery();
@@ -699,6 +707,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        {kkAvailable && onPreviewModeChange && <KkViewToggle mode={previewMode} onChange={onPreviewModeChange} />}
         <span style={{ marginLeft: "auto" }}>{ext || "image"}</span>
         {naturalSize && <span>{naturalSize.w} × {naturalSize.h}</span>}
         {formatSizeStr && <span>{formatSizeStr}</span>}
@@ -768,7 +777,7 @@ function formatDuration(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Props) {
+function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true, kkAvailable = false, previewMode = "builtin", onPreviewModeChange }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [watchAttempt, superviseWatch] = useWatchRecovery();
@@ -880,6 +889,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        {kkAvailable && onPreviewModeChange && <KkViewToggle mode={previewMode} onChange={onPreviewModeChange} />}
         <span style={{ marginLeft: "auto" }}>{ext || "audio"}</span>
         {duration != null && <span>{formatDuration(duration)}</span>}
         {size != null && <span>{formatSize(size)}</span>}
@@ -932,7 +942,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
   );
 }
 
-function VideoViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Props) {
+function VideoViewer({ filePath, cwd, sourceSessionId, watchEnabled = true, kkAvailable = false, previewMode = "builtin", onPreviewModeChange }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [watchAttempt, superviseWatch] = useWatchRecovery();
@@ -1044,6 +1054,7 @@ function VideoViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
         <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        {kkAvailable && onPreviewModeChange && <KkViewToggle mode={previewMode} onChange={onPreviewModeChange} />}
         <span style={{ marginLeft: "auto" }}>{ext || "video"}</span>
         {duration != null && <span>{formatDuration(duration)}</span>}
         {size != null && <span>{formatSize(size)}</span>}
@@ -1098,7 +1109,7 @@ function VideoViewer({ filePath, cwd, sourceSessionId, watchEnabled = true }: Pr
   );
 }
 
-function DocumentViewer({ filePath, cwd, sourceSessionId, initialPage, watchEnabled = true }: Props) {
+function DocumentViewer({ filePath, cwd, sourceSessionId, initialPage, watchEnabled = true, kkAvailable = false, previewMode = "builtin", onPreviewModeChange }: Props) {
   const { t } = useI18n();
   const [watching, setWatching] = useState(false);
   const [watchAttempt, superviseWatch] = useWatchRecovery();
@@ -1241,6 +1252,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, initialPage, watchEnab
         <span style={{ fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={filePath}>
           {getRelativeFilePath(filePath, cwd)}
         </span>
+        {kkAvailable && onPreviewModeChange && <KkViewToggle mode={previewMode} onChange={onPreviewModeChange} />}
         <span style={{ marginLeft: "auto" }}>{ext === "docx" ? "docx preview" : "pdf"}</span>
         {size != null && <span>{formatSize(size)}</span>}
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
@@ -1280,7 +1292,12 @@ function DocumentViewer({ filePath, cwd, sourceSessionId, initialPage, watchEnab
   );
 }
 
-export function FileViewer({
+/**
+ * The built-in viewer chain: media, documents and the text viewer with its
+ * source/preview/diff modes. The `FileViewer` wrapper puts kkFileView in front
+ * of this when it is configured.
+ */
+function BuiltinFileViewer({
   filePath,
   cwd,
   sourceSessionId,
@@ -1328,6 +1345,80 @@ export function FileViewer({
   );
 }
 
+// One capability probe per page; the answer never changes while loaded.
+let kkAvailableCache: boolean | null = null;
+
+function useKkFileViewAvailable(): boolean | null {
+  const [available, setAvailable] = useState<boolean | null>(kkAvailableCache);
+  useEffect(() => {
+    if (kkAvailableCache !== null) return;
+    let active = true;
+    fetch("/api/files/kkfileview")
+      .then((r) => r.json())
+      .then((d: { enabled?: boolean }) => {
+        kkAvailableCache = !!d.enabled;
+        if (active) setAvailable(kkAvailableCache);
+      })
+      .catch(() => {
+        kkAvailableCache = false;
+        if (active) setAvailable(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return available;
+}
+
+/**
+ * With kkFileView configured (`KKFILEVIEW_BASE_URL`), media and document
+ * previews render through it by default and every text viewer's toolbar gains
+ * a switch to it. `forceSource` is the escape hatch back to the built-in
+ * chain, reached from the kkFileView toolbar's Source button.
+ */
+export function FileViewer(props: Props) {
+  const kkAvailable = useKkFileViewAvailable();
+  const [forceSource, setForceSource] = useState(false);
+  const useSource = useCallback(() => setForceSource(true), []);
+  const onPreviewModeChange = useCallback((mode: PreviewMode) => {
+    setForceSource(mode === "builtin");
+  }, []);
+
+  // Tabs mount one viewer per file, but a same-tab path change still resets
+  // the manual override with it.
+  useEffect(() => {
+    setForceSource(false);
+  }, [props.filePath]);
+
+  // Everything but plain media previews through kkFileView by default, and
+  // only extensions kkFileView actually supports — anything else (pip.conf,
+  // dotfiles, unknown suffixes) would land on kkFileView's "not supported"
+  // page, so it defaults to the built-in text viewer instead. The toolbar
+  // switch still offers kkFileView on them.
+  const mediaInBuiltin = isImagePath(props.filePath) || isAudioPath(props.filePath) || isVideoPath(props.filePath);
+  const kkSupported = isKkFileViewSupportedExt(props.filePath);
+  if (kkAvailable && !forceSource && !mediaInBuiltin && kkSupported) {
+    return (
+      <KkFileViewer
+        filePath={props.filePath}
+        cwd={props.cwd}
+        sourceSessionId={props.sourceSessionId}
+        onUseSource={useSource}
+        watchEnabled={props.watchEnabled ?? true}
+      />
+    );
+  }
+
+  return (
+    <BuiltinFileViewer
+      {...props}
+      kkAvailable={kkAvailable === true}
+      previewMode="builtin"
+      onPreviewModeChange={kkAvailable ? onPreviewModeChange : undefined}
+    />
+  );
+}
+
 function TextFileViewer({
   filePath,
   cwd,
@@ -1340,6 +1431,9 @@ function TextFileViewer({
   initialState,
   onStateChange,
   watchEnabled = true,
+  kkAvailable = false,
+  previewMode = "builtin",
+  onPreviewModeChange,
 }: Props) {
   const { isDark } = useTheme();
   const { t } = useI18n();
@@ -1890,6 +1984,9 @@ function TextFileViewer({
           )}
 
           <div className="file-viewer-actions">
+            {kkAvailable && onPreviewModeChange && (
+              <KkViewToggle mode={previewMode} onChange={onPreviewModeChange} />
+            )}
             {(onAtMention || onMentionLines) && (
               <button
                 type="button"
